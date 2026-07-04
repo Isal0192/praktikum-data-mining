@@ -103,9 +103,24 @@ def bersihkan_teks(text: str) -> str:
 
 @st.cache_data(show_spinner=False)
 def load_data(file_bytes: bytes) -> pd.DataFrame:
-    """Membaca CSV dari bytes (aman untuk cache)."""
+    """Membaca CSV dari bytes (aman untuk cache).
+
+    Mencoba beberapa encoding secara berurutan karena banyak file CSV hasil
+    ekspor Excel di Indonesia tidak disimpan dalam UTF-8, melainkan
+    Windows-1252 / Latin-1, yang bila dipaksa dibaca sebagai UTF-8 akan
+    menghasilkan UnicodeDecodeError.
+    """
     import io
-    return pd.read_csv(io.BytesIO(file_bytes))
+
+    encodings_to_try = ["utf-8", "utf-8-sig", "cp1252", "latin-1"]
+    last_error = None
+    for enc in encodings_to_try:
+        try:
+            return pd.read_csv(io.BytesIO(file_bytes), encoding=enc)
+        except (UnicodeDecodeError, UnicodeError) as e:
+            last_error = e
+            continue
+    raise last_error
 
 
 @st.cache_data(show_spinner=False)
@@ -151,20 +166,30 @@ def cross_validate(_pipeline, X, y):
 
 st.header("1. Eksplorasi Data Awal")
 
+uploaded_file = st.file_uploader(
+    "Unggah dataset ulasan (.csv) — kosongkan untuk memakai data_real.csv bawaan",
+    type=["csv"],
+)
+
 try:
-    with open("data_real.csv", "rb") as f:
-        file_bytes = f.read()
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.getvalue()
+        st.caption(f"Menggunakan file unggahan: **{uploaded_file.name}**")
+    else:
+        with open("data_real.csv", "rb") as f:
+            file_bytes = f.read()
+        st.caption("Menggunakan dataset bawaan: **data_real.csv**")
 except FileNotFoundError:
     st.error(
         "File 'data_real.csv' tidak ditemukan. Pastikan file berada di folder "
-        "yang sama dengan skrip ini."
+        "yang sama dengan skrip ini, atau unggah file CSV Anda sendiri di atas."
     )
     st.stop()
 
 try:
     df_raw = load_data(file_bytes)
 except pd.errors.EmptyDataError:
-    st.error("File CSV kosong atau tidak dapat dibaca.")
+    st.error("File CSV kosong atau tidak dapat dibaca. Silakan unggah file lain.")
     st.stop()
 except pd.errors.ParserError:
     st.error("File CSV tidak valid / gagal diparsing. Pastikan formatnya benar.")
@@ -315,10 +340,10 @@ with col_eval2:
     plt.close(fig_cm)
 
 # --------------------------------------------------------------------------
-# Sidebar: Prediksi Sentimen
+# Sidebar: Prediksi Sentimen Instan
 # --------------------------------------------------------------------------
 
-st.sidebar.header("Prediksi Sentimen")
+st.sidebar.header("Prediksi Sentimen Instan")
 st.sidebar.markdown(
     "Masukkan ulasan baru di bawah ini untuk menguji performa model secara langsung."
 )
