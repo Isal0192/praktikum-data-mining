@@ -2,9 +2,9 @@
  
 ## Kelompok
 
- > Faisal Fajar
- > Muhamad Zulfikar
- > IRFAN GUNAWAN PRATAMA
+ - Faisal Fajar
+ - Muhamad Zulfikar
+ - IRFAN GUNAWAN PRATAMA
 
 ## Tentang Dataset
  
